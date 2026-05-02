@@ -124,9 +124,6 @@ well-log-visualizer/
 
 > Developed as a petrophysics engineering project demonstrating web-based well log interpretation, automated lithology classification, and reservoir screening using GR, RHOB, and NPHI log suites. Implements standard industry cutoff methodology applicable to clastic sandstone petroleum systems.
 
-**CV / Portfolio description:**
-> *Developed a browser-based well log interpretation tool that visualizes GR, RHOB, and NPHI logs, applies rule-based petrophysical classification to identify reservoir zones, estimates porosity, and generates automated engineering recommendations for early-stage sandstone reservoir screening.*
-
 ---
 
 ## License
