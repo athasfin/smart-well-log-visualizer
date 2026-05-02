@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Well Log Visualizer — AI-Assisted Reservoir Screening</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #0d0f0e;
+  --bg2: #131715;
+  --bg3: #181c1a;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #e8ede9;
+  --text2: rgba(232,237,233,0.55);
+  --text3: rgba(232,237,233,0.3);
+  --green: #22c97a;
+  --green-dim: rgba(34,201,122,0.15);
+  --green-glow: rgba(34,201,122,0.08);
+  --amber: #f5a623;
+  --amber-dim: rgba(245,166,35,0.12);
+  --red: #e55;
+  --red-dim: rgba(238,85,85,0.12);
+  --blue: #4fa3e0;
+  --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+  --font-sans: 'IBM Plex Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-mono);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  min-height: 100vh;
+}
+
+/* ── Topbar ── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  position: sticky; top: 0; z-index: 100;
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-bar { width: 3px; height: 32px; background: var(--green); border-radius: 2px; box-shadow: 0 0 8px var(--green); }
+.brand-text .title { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; color: var(--text); }
+.brand-text .sub { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); margin-top: 2px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.chip {
+  font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+  padding: 4px 10px; border: 0.5px solid var(--border2);
+  border-radius: 3px; color: var(--text3);
+}
+.chip.green { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+
+/* ── Buttons ── */
+.btn {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.5px;
+  padding: 7px 14px; border: 0.5px solid var(--border2);
+  border-radius: 4px; background: var(--bg3); color: var(--text);
+  cursor: pointer; transition: all 0.15s;
+}
+.btn:hover { border-color: var(--green); color: var(--green); }
+.btn.primary { background: var(--green); border-color: var(--green); color: #000; font-weight: 600; }
+.btn.primary:hover { background: #2de88a; }
+.btn-sm { font-size: 10px; padding: 5px 10px; }
+
+/* ── Screens ── */
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ── Home ── */
+.home-wrap { max-width: 800px; margin: 0 auto; padding: 48px 24px; }
+
+.hero { text-align: center; margin-bottom: 48px; }
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--green); border: 0.5px solid var(--green);
+  padding: 4px 12px; border-radius: 20px; margin-bottom: 20px;
+  background: var(--green-dim);
+}
+.hero-badge::before { content: '●'; font-size: 7px; }
+.hero h1 { font-size: 28px; font-weight: 600; line-height: 1.2; margin-bottom: 12px; font-family: var(--font-sans); }
+.hero h1 em { color: var(--green); font-style: normal; }
+.hero p { font-size: 13px; color: var(--text2); line-height: 1.8; max-width: 480px; margin: 0 auto 28px; font-family: var(--font-sans); font-weight: 300; }
+
+.dropzone {
+  border: 1px dashed var(--border2); border-radius: 8px; padding: 48px 32px;
+  text-align: center; cursor: pointer; transition: all 0.2s;
+  background: var(--bg2); margin-bottom: 24px;
+}
+.dropzone:hover, .dropzone.drag { border-color: var(--green); background: var(--green-glow); }
+.dropzone input { display: none; }
+.drop-icon {
+  width: 48px; height: 48px; margin: 0 auto 16px;
+  border: 1px solid var(--border2); border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.drop-icon svg { width: 22px; height: 22px; stroke: var(--text2); fill: none; stroke-width: 1.5; }
+.drop-title { font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+.drop-sub { font-size: 11px; color: var(--text2); line-height: 1.7; margin-bottom: 20px; font-family: var(--font-sans); }
+.col-tags { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.col-tag {
+  font-size: 10px; padding: 3px 10px;
+  background: var(--bg3); border: 0.5px solid var(--border); border-radius: 3px; color: var(--text3);
+}
+
+.rules-section { margin-top: 40px; }
+.section-label {
+  font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text3);
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.section-label::after { content: ''; flex: 1; height: 0.5px; background: var(--border); }
+
+.rules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.rule-card {
+  background: var(--bg2); border: 0.5px solid var(--border); border-radius: 6px; padding: 14px 16px;
+}
+.rule-card.highlight { border-color: var(--green); background: var(--green-glow); }
+.rule-num { font-size: 9px; letter-spacing: 1px; color: var(--text3); margin-bottom: 6px; }
+.rule-num.green { color: var(--green); }
+.rule-cond { font-size: 12px; color: var(--text); margin-bottom: 8px; line-height: 1.5; }
+.badge {
+  font-size: 9px; padding: 2px 8px; border-radius: 3px; display: inline-block;
+}
+.badge.res { background: rgba(34,201,122,0.15); color: var(--green); border: 0.5px solid var(--green); }
+.badge.sand { background: rgba(245,166,35,0.15); color: var(--amber); border: 0.5px solid var(--amber); }
+.badge.shale { background: rgba(232,237,233,0.06); color: var(--text2); border: 0.5px solid var(--border2); }
+.badge.trans { background: rgba(79,163,224,0.1); color: var(--blue); border: 0.5px solid var(--blue); }
+
+.err-box { background: rgba(220,50,50,0.1); border: 0.5px solid rgba(220,50,50,0.4); border-radius: 4px; padding: 10px 14px; font-size: 11px; color: #f87; margin-top: 12px; }
+
+/* ── Dashboard ── */
+.dash-wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+.dash-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 8px;
+}
+.toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 8px; }
+
+/* Stats */
+.stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 20px; }
+.stat-card {
+  background: var(--bg2); border: 0.5px solid var(--border); border-radius: 6px; padding: 12px 14px;
+}
+.stat-card.highlight { border-color: var(--green); background: var(--green-glow); }
+.stat-label { font-size: 8px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
+.stat-value { font-size: 20px; font-weight: 500; line-height: 1; }
+.stat-value.green { color: var(--green); }
+.stat-unit { font-size: 9px; color: var(--text3); margin-top: 3px; }
+
+/* Confidence */
+.confidence-bar-wrap {
+  background: var(--bg2); border: 0.5px solid var(--border); border-radius: 6px; padding: 14px 16px;
+  margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.conf-label { font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text3); min-width: 120px; }
+.conf-track { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; min-width: 120px; position: relative; }
+.conf-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+.conf-fill.high { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.conf-fill.medium { background: var(--amber); }
+.conf-fill.low { background: var(--red); }
+.conf-score { font-size: 14px; font-weight: 600; min-width: 36px; text-align: right; }
+.conf-score.high { color: var(--green); }
+.conf-score.medium { color: var(--amber); }
+.conf-score.low { color: var(--red); }
+.conf-verdict { font-size: 10px; color: var(--text2); min-width: 80px; }
+
+/* Cutoffs */
+.cutoffs-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--bg2); border: 0.5px solid var(--border); border-radius: 6px; padding: 10px 14px;
+  margin-bottom: 20px;
+}
+.cutoffs-label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); min-width: 100px; }
+.cutoff-group { display: flex; align-items: center; gap: 6px; }
+.cutoff-group span { font-size: 10px; color: var(--text3); }
+.cutoff-group input[type=number] {
+  font-family: var(--font-mono); font-size: 11px; width: 60px; padding: 4px 7px;
+  border: 0.5px solid var(--border2); border-radius: 3px;
+  background: var(--bg3); color: var(--text);
+}
+.apply-btn {
+  font-family: var(--font-mono); font-size: 10px; padding: 5px 12px;
+  border: 0.5px solid var(--green); border-radius: 3px; background: transparent; color: var(--green); cursor: pointer;
+  transition: background 0.15s;
+}
+.apply-btn:hover { background: var(--green-dim); }
+
+/* Log tracks */
+.tracks-section-label { font-size: 9px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text3); margin-bottom: 10px; }
+.legend { display: flex; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text2); }
+.legend-line { width: 20px; height: 2px; display: inline-block; }
+.legend-box { width: 10px; height: 10px; display: inline-block; border-radius: 2px; }
+
+.log-wrap {
+  background: var(--bg2); border: 0.5px solid var(--border); border-radius: 6px;
+  overflow: hidden; margin-bottom: 20px;
+}
+.log-head { display: grid; grid-template-columns: 56px 1fr 1fr 1fr 68px; background: var(--bg3); border-bottom: 0.5px solid var(--border2); }
+.lh-cell { padding: 8px 10px; font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); text-align: center; border-right: 0.5px solid var(--border); }
+.lh-cell:first-child { text-align: left; }
+.lh-cell:last-child { border-right: none; }
+.lh-range { font-size: 7px; color: var(--text3); display: block; margin-top: 2px; letter-spacing: 0; text-transform: none; }
+.log-body { display: grid; grid-template-columns: 56px 1fr 1fr 1fr 68px; height: 540px; }
+.track { border-right: 0.5px solid var(--border); overflow: hidden; position: relative; cursor: crosshair; }
+.track:last-child { border-right: none; }
+
+.tooltip-box {
+  position: absolute; background: var(--bg3); border: 0.5px solid var(--border2);
+  border-radius: 6px; padding: 8px 12px; font-size: 10px;
+  pointer-events: none; z-index: 20; white-space: nowrap; display: none; line-height: 1.8;
+}
+.tt-depth { font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.tt-val { color: var(--text2); }
+
+/* Mini charts */
+.mini-charts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+.mc-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 6px; padding: 14px; }
+.mc-title { font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 10px; }
+
+/* Reservoir intervals table */
+.zones-panel { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 20px; }
+.zones-head { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 90px 90px; background: var(--bg3); border-bottom: 0.5px solid var(--border); }
+.zh-cell { padding: 8px 12px; font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); }
+.zone-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 90px 90px; border-top: 0.5px solid var(--border); align-items: center; transition: background 0.1s; }
+.zone-row:hover { background: rgba(255,255,255,0.03); }
+.zr-cell { padding: 10px 12px; font-size: 11px; }
+
+/* Best zone highlight */
+.best-zone-card {
+  background: var(--green-glow); border: 1px solid var(--green); border-radius: 8px;
+  padding: 18px 22px; margin-bottom: 20px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.bz-left .bz-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--green); margin-bottom: 6px; }
+.bz-left .bz-title { font-size: 16px; font-weight: 600; color: var(--text); font-family: var(--font-sans); }
+.bz-left .bz-sub { font-size: 11px; color: var(--text2); margin-top: 4px; font-family: var(--font-sans); }
+.bz-right { display: flex; gap: 24px; flex-wrap: wrap; }
+.bz-stat { text-align: center; }
+.bz-stat-val { font-size: 18px; font-weight: 600; color: var(--green); }
+.bz-stat-label { font-size: 8px; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-top: 2px; }
+
+/* Interpretation & Recommendation */
+.cards-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.interp-card {
+  background: var(--bg2); border: 0.5px solid var(--border); border-radius: 6px; padding: 18px 20px;
+}
+.interp-card.action { border-left: 3px solid var(--green); }
+.interp-card-label { font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text3); margin-bottom: 10px; }
+.interp-card-label.green { color: var(--green); }
+.interp-card-text { font-size: 12px; color: var(--text2); line-height: 1.9; font-family: var(--font-sans); font-weight: 300; }
+
+/* Lithology */
+.litho-row { display: flex; gap: 8px; margin-bottom: 6px; }
+.litho-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; margin-top: 1px; }
+
+/* Download report */
+.report-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg2); border: 0.5px solid var(--border); border-radius: 6px; padding: 12px 16px;
+  margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+}
+.report-bar-text { font-size: 11px; color: var(--text2); font-family: var(--font-sans); }
+.report-bar-text strong { color: var(--text); font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+
+<!-- ══ TOP BAR ══════════════════════════════════════ -->
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-bar"></div>
+    <div class="brand-text">
+      <div class="title">Smart Well Log Visualizer</div>
+      <div class="sub">AI-Assisted Reservoir Screening Tool</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="chip">GR · RHOB · NPHI</span>
+    <span class="chip">Sandstone Reservoirs</span>
+    <button class="btn btn-sm" id="sampleBtn">Load sample data</button>
+  </div>
+</div>
+
+<!-- ══ HOME SCREEN ══════════════════════════════════ -->
+<div id="homeScreen" class="screen active">
+  <div class="home-wrap">
+    <div class="hero">
+      <div class="hero-badge">Petrophysics · Reservoir Screening</div>
+      <h1>AI-Assisted <em>Well Log</em> Interpretation</h1>
+      <p>Upload GR, RHOB, and NPHI log data to automatically classify lithology, detect reservoir intervals, estimate confidence scores, and generate engineering recommendations.</p>
+      <p style="font-size:11px; color:var(--text3); font-family:var(--font-sans); margin-top:-12px;">Applicable for sandstone reservoirs · Early-stage exploration screening</p>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileInput" accept=".csv">
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
+      </div>
+      <div class="drop-title">Upload CSV well log</div>
+      <div class="drop-sub">Drag and drop your file here, or click to browse.<br>Required columns shown below — units: depth (m), GR (API), RHOB (g/cc), NPHI (fraction)</div>
+      <div class="col-tags">
+        <span class="col-tag">Depth</span>
+        <span class="col-tag">GR</span>
+        <span class="col-tag">RHOB</span>
+        <span class="col-tag">NPHI</span>
+      </div>
+      <div style="margin-top:20px">
+        <button class="btn primary" onclick="document.getElementById('fileInput').click()">Browse file</button>
+      </div>
+    </div>
+    <div id="homeErr"></div>
+
+    <div class="rules-section">
+      <div class="section-label">Detection rules — petrophysical classification logic</div>
+      <div class="rules-grid">
+        <div class="rule-card">
+          <div class="rule-num">Rule 1</div>
+          <div class="rule-cond">GR &lt; 60 API</div>
+          <span class="badge sand">Clean Sand</span>
+        </div>
+        <div class="rule-card">
+          <div class="rule-num">Rule 2</div>
+          <div class="rule-cond">GR &gt; 80 API</div>
+          <span class="badge shale">Shale</span>
+        </div>
+        <div class="rule-card">
+          <div class="rule-num">Rule 3</div>
+          <div class="rule-cond">NPHI 0.12 – 0.30</div>
+          <span class="badge trans">Porous Zone</span>
+        </div>
+        <div class="rule-card">
+          <div class="rule-num">Rule 4</div>
+          <div class="rule-cond">RHOB 2.1 – 2.5 g/cc</div>
+          <span class="badge trans">Reservoir Quality</span>
+        </div>
+        <div class="rule-card highlight">
+          <div class="rule-num green">Rule 5 — Combined</div>
+          <div class="rule-cond" style="font-size:11px; line-height:1.6;">GR &lt; 60 + NPHI ∈ [0.12, 0.30] + RHOB ∈ [2.1, 2.5]</div>
+          <span class="badge res">Possible Reservoir</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DASHBOARD SCREEN ══════════════════════════════ -->
+<div id="dashScreen" class="screen">
+  <div class="dash-wrap">
+
+    <!-- Toolbar -->
+    <div class="dash-toolbar">
+      <div class="toolbar-left">
+        <span class="chip" id="fileChip">—</span>
+        <span class="chip" id="sampleCountChip">—</span>
+        <span class="chip green" id="applicabilityChip">Sandstone Reservoir</span>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-sm" onclick="downloadReport()">⬇ Download Report</button>
+        <button class="btn btn-sm" onclick="exportCSV()">Export Zones CSV</button>
+        <button class="btn btn-sm" onclick="goHome()">← New Upload</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Depth Range</div><div class="stat-value" id="sDepth">—</div><div class="stat-unit">m MD</div></div>
+      <div class="stat-card"><div class="stat-label">Avg GR</div><div class="stat-value" id="sGR">—</div><div class="stat-unit">API units</div></div>
+      <div class="stat-card"><div class="stat-label">Avg RHOB</div><div class="stat-value" id="sRHOB">—</div><div class="stat-unit">g/cc</div></div>
+      <div class="stat-card"><div class="stat-label">Avg NPHI</div><div class="stat-value" id="sNPHI">—</div><div class="stat-unit">fraction</div></div>
+      <div class="stat-card highlight"><div class="stat-label">Reservoir Candidates</div><div class="stat-value green" id="sZones">—</div><div class="stat-unit" id="sZonesPct">—</div></div>
+      <div class="stat-card"><div class="stat-label">Net Pay (Est.)</div><div class="stat-value" id="sNetPay">—</div><div class="stat-unit">m</div></div>
+    </div>
+
+    <!-- Confidence Score -->
+    <div class="confidence-bar-wrap">
+      <div class="conf-label">Reservoir Confidence</div>
+      <div class="conf-track"><div class="conf-fill" id="confFill" style="width:0%"></div></div>
+      <div class="conf-score" id="confScore">—</div>
+      <div class="conf-verdict" id="confVerdict">—</div>
+      <div style="font-size:9px; color:var(--text3); margin-left:auto;">Based on log quality, zone count, and petrophysical criteria satisfaction</div>
+    </div>
+
+    <!-- Cutoffs -->
+    <div class="cutoffs-row">
+      <div class="cutoffs-label">Cutoff Thresholds</div>
+      <div class="cutoff-group">
+        <span>GR &lt;</span>
+        <input type="number" id="cutGR" value="60" min="0" max="150" step="1">
+        <span>API</span>
+      </div>
+      <div class="cutoff-group">
+        <span>NPHI</span>
+        <input type="number" id="cutNmin" value="0.12" min="0" max="0.5" step="0.01">
+        <span>–</span>
+        <input type="number" id="cutNmax" value="0.30" min="0" max="0.5" step="0.01">
+      </div>
+      <div class="cutoff-group">
+        <span>RHOB</span>
+        <input type="number" id="cutRmin" value="2.1" min="1.5" max="3" step="0.05">
+        <span>–</span>
+        <input type="number" id="cutRmax" value="2.5" min="1.5" max="3" step="0.05">
+      </div>
+      <button class="apply-btn" onclick="applyAndRedraw()">Apply</button>
+      <span style="font-size:9px; color:var(--text3); margin-left:auto;">Adjust and re-run screening</span>
+    </div>
+
+    <!-- Log tracks -->
+    <div class="tracks-section-label">Log tracks — hover to inspect depth values</div>
+    <div class="legend">
+      <div class="legend-item"><span class="legend-line" style="background:#E24B4A"></span>Gamma Ray (GR)</div>
+      <div class="legend-item"><span class="legend-line" style="background:var(--blue)"></span>Bulk Density (RHOB)</div>
+      <div class="legend-item"><span class="legend-line" style="background:var(--green)"></span>Neutron Porosity (NPHI)</div>
+      <div class="legend-item"><span class="legend-box" style="background:rgba(34,201,122,0.2); border:0.5px solid var(--green)"></span>Reservoir Candidate</div>
+      <div class="legend-item"><span class="legend-box" style="background:rgba(245,166,35,0.2); border:0.5px solid var(--amber)"></span>Clean Sand</div>
+      <div class="legend-item"><span class="legend-box" style="background:rgba(232,237,233,0.05); border:0.5px solid var(--border2)"></span>Shale</div>
+    </div>
+
+    <div class="log-wrap">
+      <div class="log-head">
+        <div class="lh-cell" style="text-align:left">Depth<span class="lh-range">m MD</span></div>
+        <div class="lh-cell">Track 1 — GR<span class="lh-range">0 → 150 API</span></div>
+        <div class="lh-cell">Track 2 — RHOB<span class="lh-range">1.8 → 3.0 g/cc</span></div>
+        <div class="lh-cell">Track 3 — NPHI<span class="lh-range">0 → 0.45 frac</span></div>
+        <div class="lh-cell">Track 4<span class="lh-range">Zone</span></div>
+      </div>
+      <div class="log-body" id="logBody">
+        <div class="track" id="tDepth"></div>
+        <div class="track" id="tGR"></div>
+        <div class="track" id="tRHOB"></div>
+        <div class="track" id="tNPHI"></div>
+        <div class="track" id="tZone"></div>
+      </div>
+    </div>
+    <div id="globalTip" class="tooltip-box"></div>
+
+    <!-- Mini charts -->
+    <div class="mini-charts">
+      <div class="mc-card">
+        <div class="mc-title">GR Distribution (API)</div>
+        <div style="position:relative;height:120px"><canvas id="grHist"></canvas></div>
+      </div>
+      <div class="mc-card">
+        <div class="mc-title">RHOB vs NPHI Crossplot</div>
+        <div style="position:relative;height:120px"><canvas id="xplot"></canvas></div>
+      </div>
+      <div class="mc-card">
+        <div class="mc-title">Zone Composition</div>
+        <div style="position:relative;height:120px"><canvas id="zonePie"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Best Zone Highlight -->
+    <div id="bestZoneCard" class="best-zone-card" style="display:none">
+      <div class="bz-left">
+        <div class="bz-label">★ Priority Reservoir Target</div>
+        <div class="bz-title" id="bzDepth">—</div>
+        <div class="bz-sub" id="bzSub">—</div>
+      </div>
+      <div class="bz-right" id="bzStats"></div>
+    </div>
+
+    <!-- Reservoir Intervals Table -->
+    <div class="section-label" style="margin-bottom:12px">Reservoir Candidates</div>
+    <div class="zones-panel">
+      <div class="zones-head">
+        <div class="zh-cell">Classification</div>
+        <div class="zh-cell">Depth Interval</div>
+        <div class="zh-cell">Avg GR (API)</div>
+        <div class="zh-cell">Avg RHOB / NPHI</div>
+        <div class="zh-cell">Samples</div>
+        <div class="zh-cell">Porosity Est.</div>
+      </div>
+      <div id="zonesBody"></div>
+    </div>
+
+    <!-- Interpretation + Recommendation -->
+    <div class="cards-row">
+      <div class="interp-card">
+        <div class="interp-card-label">Petrophysical Assessment</div>
+        <div class="interp-card-text" id="interpText">—</div>
+      </div>
+      <div class="interp-card action">
+        <div class="interp-card-label green">Engineering Recommendation</div>
+        <div class="interp-card-text" id="recText">—</div>
+      </div>
+    </div>
+
+    <!-- Lithology Summary -->
+    <div class="interp-card" style="margin-bottom:20px">
+      <div class="interp-card-label">Lithology &amp; Porosity Interpretation</div>
+      <div class="interp-card-text" id="lithoText">—</div>
+    </div>
+
+    <!-- Download bar -->
+    <div class="report-bar">
+      <div class="report-bar-text">
+        <strong>Export full interpretation report</strong> — includes all zones, statistics, and engineering recommendations as a plain-text file
+      </div>
+      <button class="btn primary" onclick="downloadReport()">⬇ Download .txt Report</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────
+let rawData = null, fname = '', charts = {};
+const H = 540;
+
+// ─── Sample data ─────────────────────────────────────
+const SAMPLE = `Depth,GR,RHOB,NPHI
+1000,82,2.62,0.08
+1001,78,2.58,0.09
+1002,85,2.65,0.07
+1003,76,2.60,0.10
+1004,88,2.63,0.08
+1005,72,2.55,0.11
+1010,55,2.45,0.16
+1011,48,2.38,0.19
+1012,42,2.32,0.22
+1013,38,2.28,0.24
+1014,35,2.25,0.26
+1015,33,2.22,0.27
+1016,36,2.24,0.25
+1017,40,2.30,0.23
+1018,44,2.35,0.20
+1019,52,2.42,0.17
+1020,58,2.48,0.15
+1025,90,2.67,0.06
+1026,86,2.64,0.07
+1027,92,2.68,0.06
+1028,88,2.66,0.07
+1030,61,2.50,0.14
+1031,55,2.44,0.17
+1032,50,2.40,0.19
+1033,45,2.35,0.21
+1034,42,2.32,0.23
+1035,40,2.30,0.24
+1036,38,2.28,0.25
+1037,41,2.31,0.22
+1038,47,2.36,0.20
+1039,54,2.43,0.18
+1040,62,2.51,0.15
+1045,79,2.58,0.09
+1046,83,2.62,0.08
+1047,87,2.64,0.07`;
+
+// ─── Parse CSV ───────────────────────────────────────
+function parseCSV(txt) {
+  const lines = txt.trim().split('\n');
+  const hdrs = lines[0].split(',').map(h => h.trim());
+  const req = ['Depth','GR','RHOB','NPHI'];
+  const miss = req.filter(r => !hdrs.includes(r));
+  if (miss.length) throw new Error('Missing columns: ' + miss.join(', '));
+  return lines.slice(1).map(l => {
+    const v = l.split(',').map(s => s.trim());
+    const o = {}; hdrs.forEach((h,i) => o[h] = parseFloat(v[i])); return o;
+  }).filter(r => !isNaN(r.Depth));
+}
+
+// ─── Cutoffs ─────────────────────────────────────────
+function getCuts() {
+  return {
+    grMax: +document.getElementById('cutGR').value,
+    nMin:  +document.getElementById('cutNmin').value,
+    nMax:  +document.getElementById('cutNmax').value,
+    rMin:  +document.getElementById('cutRmin').value,
+    rMax:  +document.getElementById('cutRmax').value
+  };
+}
+
+// ─── Classification ───────────────────────────────────
+function classify(row, cuts) {
+  const lowGR = row.GR < cuts.grMax;
+  const highGR = row.GR > 80;
+  const goodN = row.NPHI >= cuts.nMin && row.NPHI <= cuts.nMax;
+  const goodR = row.RHOB >= cuts.rMin && row.RHOB <= cuts.rMax;
+  if (lowGR && goodN && goodR) return 'reservoir';
+  if (lowGR) return 'sand';
+  if (highGR) return 'shale';
+  return 'transition';
+}
+
+// ─── Zone grouping ────────────────────────────────────
+function makeZones(data, cuts) {
+  const zones = []; let cur = null;
+  data.forEach(r => {
+    const t = classify(r, cuts);
+    if (!cur || cur.type !== t) { if (cur) zones.push(cur); cur = {type:t, start:r.Depth, end:r.Depth, rows:[r]}; }
+    else { cur.end = r.Depth; cur.rows.push(r); }
+  });
+  if (cur) zones.push(cur);
+  return zones;
+}
+
+// ─── Helpers ──────────────────────────────────────────
+function avg(arr, k) { return arr.reduce((s,r) => s + r[k], 0) / arr.length; }
+function estPorosity(nphi) { return (nphi * 100).toFixed(1); }
+
+// Confidence score (0–100)
+function calcConfidence(data, resZones, zones, cuts) {
+  if (!resZones.length) return 0;
+  const pct = resZones.reduce((s,z) => s + z.rows.length, 0) / data.length;
+  const avgGR = avg(data,'GR');
+  const grScore = Math.max(0, 1 - avgGR / 120);
+  const zoneScore = Math.min(1, resZones.length / 3);
+  const pctScore = Math.min(1, pct * 3);
+  return Math.round((grScore * 0.35 + zoneScore * 0.3 + pctScore * 0.35) * 100);
+}
+
+// ─── Screens ─────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goHome() { showScreen('homeScreen'); }
+
+// ─── Events ──────────────────────────────────────────
+document.getElementById('sampleBtn').addEventListener('click', () => {
+  rawData = parseCSV(SAMPLE); fname = 'sample_well_log.csv'; renderDash();
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  fname = f.name;
+  const r = new FileReader();
+  r.onload = ev => { try { rawData = parseCSV(ev.target.result); document.getElementById('homeErr').innerHTML = ''; renderDash(); }
+    catch(err) { document.getElementById('homeErr').innerHTML = `<div class="err-box">${err.message}</div>`; }};
+  r.readAsText(f);
+});
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  fname = f.name;
+  const r = new FileReader();
+  r.onload = ev => { try { rawData = parseCSV(ev.target.result); document.getElementById('homeErr').innerHTML = ''; renderDash(); }
+    catch(err) { document.getElementById('homeErr').innerHTML = `<div class="err-box">${err.message}</div>`; }};
+  r.readAsText(f);
+});
+function applyAndRedraw() { if (rawData) renderDash(); }
+
+// ─── Main render ─────────────────────────────────────
+function renderDash() {
+  const data = rawData, cuts = getCuts(), zones = makeZones(data, cuts);
+  const resZones = zones.filter(z => z.type === 'reservoir');
+  const dmin = Math.min(...data.map(d => d.Depth));
+  const dmax = Math.max(...data.map(d => d.Depth));
+  const avgGR = avg(data,'GR'), avgRHOB = avg(data,'RHOB'), avgNPHI = avg(data,'NPHI');
+  const resPct = resZones.reduce((s,z) => s+z.rows.length, 0) / data.length * 100;
+  const netPay = resZones.reduce((s,z) => s + (z.end - z.start), 0);
+
+  // Stats
+  document.getElementById('fileChip').textContent = fname;
+  document.getElementById('sampleCountChip').textContent = data.length + ' samples';
+  document.getElementById('sDepth').textContent = dmin + '–' + dmax;
+  document.getElementById('sGR').textContent = avgGR.toFixed(1);
+  document.getElementById('sRHOB').textContent = avgRHOB.toFixed(2);
+  document.getElementById('sNPHI').textContent = avgNPHI.toFixed(3);
+  document.getElementById('sZones').textContent = resZones.length;
+  document.getElementById('sZonesPct').textContent = resPct.toFixed(0) + '% of section';
+  document.getElementById('sNetPay').textContent = netPay.toFixed(0);
+
+  // Confidence
+  const conf = calcConfidence(data, resZones, zones, cuts);
+  const confEl = document.getElementById('confFill');
+  const confClass = conf >= 65 ? 'high' : conf >= 35 ? 'medium' : 'low';
+  confEl.className = 'conf-fill ' + confClass;
+  confEl.style.width = conf + '%';
+  document.getElementById('confScore').textContent = conf + '%';
+  document.getElementById('confScore').className = 'conf-score ' + confClass;
+  document.getElementById('confVerdict').textContent = conf >= 65 ? 'High Confidence' : conf >= 35 ? 'Moderate' : 'Low / Inconclusive';
+
+  showScreen('dashScreen');
+  setTimeout(() => {
+    drawTracks(data, zones, dmin, dmax);
+    drawMiniCharts(data, zones);
+    renderZonesTable(zones, resZones);
+    renderBestZone(resZones);
+    renderInterp(data, zones, resZones, cuts);
+    renderRec(data, resZones, cuts, netPay);
+    renderLitho(data, resZones, cuts);
+  }, 30);
+}
+
+// ─── Draw log tracks ────────────────────────────────
+function drawTracks(data, zones, dmin, dmax) {
+  ['tDepth','tGR','tRHOB','tNPHI','tZone'].forEach(id => document.getElementById(id).innerHTML = '');
+  const drng = dmax - dmin || 1;
+  function yp(d) { return ((d-dmin)/drng)*(H-10)+5; }
+  const bg = '#131715', grid = 'rgba(255,255,255,0.05)', txtCol = 'rgba(232,237,233,0.3)';
+  function makeCanvas(el) {
+    const W = el.clientWidth || 100;
+    const cv = document.createElement('canvas'); cv.width = W*2; cv.height = H*2;
+    cv.style.width = W+'px'; cv.style.height = H+'px';
+    const c = cv.getContext('2d'); c.scale(2,2);
+    c.fillStyle = bg; c.fillRect(0,0,W,H);
+    el.appendChild(cv); return {c,W};
+  }
+  function drawZoneBgs(c,W) {
+    zones.forEach(z => {
+      const y1 = yp(z.start), y2 = yp(z.end)+5;
+      if (z.type==='reservoir') c.fillStyle = 'rgba(34,201,122,0.14)';
+      else if (z.type==='sand') c.fillStyle = 'rgba(245,166,35,0.10)';
+      else if (z.type==='shale') c.fillStyle = 'rgba(232,237,233,0.04)';
+      else return;
+      c.fillRect(0,y1,W,y2-y1);
+    });
+  }
+  function drawGridLines(c,W,n) {
+    c.strokeStyle = grid; c.lineWidth = 0.5;
+    for(let i=1;i<n;i++){const x=(W/n)*i;c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();}
+    for(let i=0;i<=8;i++){const y=(H/8)*i;c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke();}
+  }
+  function drawCurve(c,W,key,min,max,color,fill) {
+    c.beginPath(); c.strokeStyle = color; c.lineWidth = 1.5;
+    data.forEach((r,i) => { const x=((r[key]-min)/(max-min))*W, y=yp(r.Depth); i===0?c.moveTo(x,y):c.lineTo(x,y); });
+    c.stroke();
+    if (fill) {
+      c.beginPath();
+      data.forEach((r,i) => { const x=((r[key]-min)/(max-min))*W, y=yp(r.Depth); if(i===0){c.moveTo(0,y);c.lineTo(x,y);}else c.lineTo(x,y); });
+      c.lineTo(0,yp(data[data.length-1].Depth)); c.closePath();
+      c.fillStyle = 'rgba(226,75,74,0.13)'; c.fill();
+    }
+  }
+
+  const {c:dc,W:dW} = makeCanvas(document.getElementById('tDepth'));
+  drawGridLines(dc,dW,1);
+  dc.fillStyle = txtCol; dc.font = '9px monospace'; dc.textAlign = 'right';
+  for(let i=0;i<=8;i++){const d=dmin+(drng/8)*i; dc.fillText(d.toFixed(0),dW-3,yp(d)+3);}
+
+  ['tGR','tRHOB','tNPHI'].forEach(id => {
+    const {c,W} = makeCanvas(document.getElementById(id));
+    drawZoneBgs(c,W); drawGridLines(c,W,4);
+    if(id==='tGR') drawCurve(c,W,'GR',0,150,'#E24B4A',true);
+    if(id==='tRHOB') drawCurve(c,W,'RHOB',1.8,3.0,'#4fa3e0',false);
+    if(id==='tNPHI') drawCurve(c,W,'NPHI',0,0.45,'#22c97a',false);
+  });
+
+  const {c:zc,W:zW} = makeCanvas(document.getElementById('tZone'));
+  drawZoneBgs(zc,zW);
+  zones.forEach(z => {
+    const y1=yp(z.start), y2=yp(z.end)+5;
+    if(z.type==='reservoir'){
+      zc.fillStyle='#22c97a99'; zc.fillRect(4,y1,zW-8,y2-y1);
+      zc.strokeStyle='#22c97a'; zc.lineWidth=1; zc.strokeRect(4,y1,zW-8,y2-y1);
+      if(y2-y1>14){zc.fillStyle='#9FE1CB';zc.font='8px monospace';zc.textAlign='center';zc.fillText('RES',zW/2,(y1+y2)/2+3);}
+    }
+  });
+
+  setupHover(data,zones,dmin,dmax);
+}
+
+function setupHover(data,zones,dmin,dmax){
+  const tip=document.getElementById('globalTip');
+  const tracks=['tGR','tRHOB','tNPHI','tZone'];
+  const drng=dmax-dmin||1;
+  tracks.forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener('mousemove',e=>{
+      const rect=el.getBoundingClientRect();
+      const yFrac=(e.clientY-rect.top)/rect.height;
+      const depth=dmin+yFrac*drng;
+      const row=data.reduce((best,r)=>Math.abs(r.Depth-depth)<Math.abs(best.Depth-depth)?r:best,data[0]);
+      const zone=zones.find(z=>row.Depth>=z.start&&row.Depth<=z.end);
+      const zLabel=zone?zone.type:'—';
+      tip.style.display='block';
+      tip.innerHTML=`<div class="tt-depth">Depth: ${row.Depth.toFixed(0)} m</div>
+      <div class="tt-val">GR: ${row.GR.toFixed(1)} API</div>
+      <div class="tt-val">RHOB: ${row.RHOB.toFixed(3)} g/cc</div>
+      <div class="tt-val">NPHI: ${row.NPHI.toFixed(3)}</div>
+      <div class="tt-val">Est. porosity: ${estPorosity(row.NPHI)}%</div>
+      <div class="tt-val">Zone: ${zLabel}</div>`;
+      const bEl=document.getElementById('logBody').getBoundingClientRect();
+      tip.style.left=(e.clientX-bEl.left+12)+'px';
+      tip.style.top=(e.clientY-bEl.top-10)+'px';
+    });
+    el.addEventListener('mouseleave',()=>{tip.style.display='none';});
+  });
+}
+
+// ─── Mini charts ─────────────────────────────────────
+function drawMiniCharts(data,zones){
+  ['grHistChart','xplotChart','zoneChart'].forEach(k=>{if(charts[k]){charts[k].destroy();delete charts[k];}});
+  const lc='rgba(255,255,255,0.3)', gc='rgba(255,255,255,0.05)', cuts=getCuts();
+  const bins=new Array(10).fill(0);
+  data.forEach(r=>{const b=Math.min(Math.floor(r.GR/15),9);bins[b]++;});
+  charts.grHistChart=new Chart(document.getElementById('grHist'),{
+    type:'bar',data:{labels:['0','15','30','45','60','75','90','105','120','135'],
+      datasets:[{data:bins,backgroundColor:'rgba(226,75,74,0.4)',borderColor:'#E24B4A',borderWidth:1}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{size:8},color:lc},grid:{color:gc}},y:{ticks:{font:{size:8},color:lc},grid:{color:gc}}}}
+  });
+  charts.xplotChart=new Chart(document.getElementById('xplot'),{
+    type:'scatter',
+    data:{datasets:[
+      {data:data.filter(r=>classify(r,cuts)==='reservoir').map(r=>({x:r.RHOB,y:r.NPHI})),pointBackgroundColor:'#22c97a',pointRadius:3,label:'Reservoir'},
+      {data:data.filter(r=>classify(r,cuts)!=='reservoir').map(r=>({x:r.RHOB,y:r.NPHI})),pointBackgroundColor:'rgba(255,255,255,0.2)',pointRadius:2,label:'Other'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{title:{display:true,text:'RHOB',font:{size:8},color:lc},ticks:{font:{size:7},color:lc},grid:{color:gc}},
+              y:{title:{display:true,text:'NPHI',font:{size:8},color:lc},ticks:{font:{size:7},color:lc},grid:{color:gc}}}}
+  });
+  const zc={reservoir:0,sand:0,shale:0,transition:0};
+  zones.forEach(z=>zc[z.type]+=z.rows.length);
+  charts.zoneChart=new Chart(document.getElementById('zonePie'),{
+    type:'doughnut',
+    data:{labels:['Reservoir','Clean Sand','Shale','Transition'],
+      datasets:[{data:[zc.reservoir,zc.sand,zc.shale,zc.transition],
+        backgroundColor:['rgba(34,201,122,0.5)','rgba(245,166,35,0.5)','rgba(232,237,233,0.1)','rgba(79,163,224,0.3)'],
+        borderColor:['#22c97a','#f5a623','rgba(255,255,255,0.2)','#4fa3e0'],borderWidth:1}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'55%'}
+  });
+}
+
+// ─── Zones table ─────────────────────────────────────
+function renderZonesTable(zones,resZones){
+  const el=document.getElementById('zonesBody');
+  const cands=zones.filter(z=>z.type==='reservoir'||z.type==='sand');
+  if(!cands.length){el.innerHTML='<div style="padding:12px 14px;font-size:11px;color:var(--text2)">No reservoir or clean-sand intervals detected. Consider adjusting cutoff thresholds.</div>';return;}
+  el.innerHTML=cands.map(z=>{
+    const gr=avg(z.rows,'GR'), rhob=avg(z.rows,'RHOB'), nphi=avg(z.rows,'NPHI');
+    const poro=estPorosity(nphi);
+    const cls=z.type==='reservoir'?'res':'sand';
+    return `<div class="zone-row">
+      <div class="zr-cell"><span class="badge ${cls}">${z.type==='reservoir'?'Reservoir Candidate':'Clean Sand'}</span></div>
+      <div class="zr-cell" style="font-family:var(--font-mono)">${z.start}–${z.end} m</div>
+      <div class="zr-cell" style="font-family:var(--font-mono)">${gr.toFixed(1)}</div>
+      <div class="zr-cell" style="font-family:var(--font-mono)">${rhob.toFixed(2)} / ${nphi.toFixed(3)}</div>
+      <div class="zr-cell" style="font-family:var(--font-mono)">${z.rows.length}</div>
+      <div class="zr-cell" style="font-family:var(--font-mono);color:var(--green)">${poro}%</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Best zone highlight ──────────────────────────────
+function renderBestZone(resZones){
+  const card=document.getElementById('bestZoneCard');
+  if(!resZones.length){card.style.display='none';return;}
+  card.style.display='flex';
+  const best=resZones.reduce((a,b)=>b.rows.length>a.rows.length?b:a);
+  const gr=avg(best.rows,'GR'), rhob=avg(best.rows,'RHOB'), nphi=avg(best.rows,'NPHI');
+  document.getElementById('bzDepth').textContent=`${best.start}–${best.end} m`;
+  document.getElementById('bzSub').textContent=`Largest continuous reservoir interval — ${best.rows.length} depth samples — priority testing target`;
+  document.getElementById('bzStats').innerHTML=`
+    <div class="bz-stat"><div class="bz-stat-val">${gr.toFixed(0)}</div><div class="bz-stat-label">Avg GR (API)</div></div>
+    <div class="bz-stat"><div class="bz-stat-val">${rhob.toFixed(2)}</div><div class="bz-stat-label">Avg RHOB (g/cc)</div></div>
+    <div class="bz-stat"><div class="bz-stat-val">${(nphi*100).toFixed(1)}%</div><div class="bz-stat-label">Est. Porosity</div></div>
+    <div class="bz-stat"><div class="bz-stat-val">${best.rows.length}</div><div class="bz-stat-label">Samples</div></div>`;
+}
+
+// ─── Interpretation ───────────────────────────────────
+function renderInterp(data,zones,resZones,cuts){
+  const el=document.getElementById('interpText');
+  if(!resZones.length){
+    el.textContent=`No intervals simultaneously satisfied all three reservoir criteria (GR < ${cuts.grMax} API, NPHI ${cuts.nMin}–${cuts.nMax}, RHOB ${cuts.rMin}–${cuts.rMax} g/cc). The section average GR of ${avg(data,'GR').toFixed(1)} API indicates predominantly argillaceous or mixed lithology. Elevated gamma ray throughout suggests a shale-dominated sequence with limited clean sandstone development. Consider relaxing cutoff thresholds or evaluating additional log suites (resistivity, sonic) for comprehensive assessment.`;
+    return;
+  }
+  const best=resZones.reduce((a,b)=>b.rows.length>a.rows.length?b:a);
+  const pct=(resZones.reduce((s,z)=>s+z.rows.length,0)/data.length*100).toFixed(0);
+  const gr=avg(best.rows,'GR'), nphi=avg(best.rows,'NPHI'), rhob=avg(best.rows,'RHOB');
+  el.textContent=`${resZones.length} reservoir interval${resZones.length>1?'s were':'was'} identified, comprising ${pct}% of the logged section. The primary interval (${best.start}–${best.end} m) exhibits a gamma ray average of ${gr.toFixed(0)} API, confirming reduced shale content and cleaner sandstone lithology. Neutron porosity of ${nphi.toFixed(3)} indicates moderate to good pore space development, while bulk density of ${rhob.toFixed(2)} g/cc falls within the ${cuts.rMin}–${cuts.rMax} g/cc reservoir-quality window. Overlapping NPHI and RHOB trends suggest fluid-filled porosity consistent with a hydrocarbon-bearing or water-bearing sandstone reservoir.`;
+}
+
+// ─── Engineering Recommendation ──────────────────────
+function renderRec(data,resZones,cuts,netPay){
+  const el=document.getElementById('recText');
+  if(!resZones.length){
+    el.textContent='No reservoir candidates identified under current cutoff parameters. Recommended actions: (1) Adjust GR cutoff to 70–80 API and re-run screening. (2) Acquire resistivity log data to evaluate fluid saturation in borderline intervals. (3) Consider core sampling from transition zones for laboratory porosity confirmation.';
+    return;
+  }
+  const best=resZones.reduce((a,b)=>b.rows.length>a.rows.length?b:a);
+  el.textContent=`The interval ${best.start}–${best.end} m is the strongest reservoir candidate and should be prioritized for well testing or core sampling. Estimated net pay of ${netPay.toFixed(0)} m represents meaningful reservoir thickness for early-stage evaluation. Recommended next steps: (1) Acquire resistivity/induction logs to determine water vs. hydrocarbon saturation. (2) Run drill stem test (DST) on the primary interval. (3) Perform petrographic analysis on any available core to confirm sandstone quality. (4) Evaluate structural position on seismic data to assess trap integrity.`;
+}
+
+// ─── Lithology interpretation ─────────────────────────
+function renderLitho(data,resZones,cuts){
+  const el=document.getElementById('lithoText');
+  const shaleCount=data.filter(r=>r.GR>80).length;
+  const sandCount=data.filter(r=>r.GR<cuts.grMax).length;
+  const shalePct=(shaleCount/data.length*100).toFixed(0);
+  const sandPct=(sandCount/data.length*100).toFixed(0);
+  const avgNPHI=avg(data,'NPHI');
+  const poroClass=avgNPHI>0.25?'high (>25%)':avgNPHI>0.15?'moderate (15–25%)':'low (<15%)';
+  const lithoSummary=+shalePct>60?'predominantly shale with minor sand stringers':
+    +sandPct>50?'predominantly clean sandstone with interbedded shale':
+    'interbedded sand–shale sequence';
+  el.textContent=`Lithological analysis indicates a ${lithoSummary}. Shale content accounts for approximately ${shalePct}% of the section (GR > 80 API), while clean sand intervals comprise ${sandPct}%. Section-averaged neutron porosity of ${avgNPHI.toFixed(3)} suggests ${poroClass} effective porosity. ${resZones.length>0?`Reservoir-quality intervals display elevated NPHI and reduced RHOB, consistent with porous, potentially fluid-saturated sandstone formations. This log character is typical of fluvial or deltaic sandstone reservoirs common in petroleum basins globally.`:'No definitive reservoir-quality porosity was identified; the section may represent tight or cemented sandstones, or a shale-dominated interval requiring further investigation.'}`;
+}
+
+// ─── Export CSV ──────────────────────────────────────
+function exportCSV(){
+  if(!rawData)return;
+  const cuts=getCuts(), zones=makeZones(rawData,cuts);
+  const rows=['Depth,GR,RHOB,NPHI,Zone,EstPorosity_pct'];
+  rawData.forEach(r=>{
+    const z=zones.find(zo=>r.Depth>=zo.start&&r.Depth<=zo.end);
+    rows.push(`${r.Depth},${r.GR},${r.RHOB},${r.NPHI},${z?z.type:'—'},${(r.NPHI*100).toFixed(1)}`);
+  });
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='well_log_interpreted.csv';a.click();
+}
+
+// ─── Download Report ─────────────────────────────────
+function downloadReport(){
+  if(!rawData)return;
+  const cuts=getCuts(), zones=makeZones(rawData,cuts);
+  const resZones=zones.filter(z=>z.type==='reservoir');
+  const dmin=Math.min(...rawData.map(d=>d.Depth));
+  const dmax=Math.max(...rawData.map(d=>d.Depth));
+  const conf=calcConfidence(rawData,resZones,zones,cuts);
+  const netPay=resZones.reduce((s,z)=>s+(z.end-z.start),0);
+  const now=new Date().toISOString().split('T')[0];
+
+  let txt=`SMART WELL LOG VISUALIZER — INTERPRETATION REPORT
+AI-Assisted Reservoir Screening Tool
+${'='.repeat(60)}
+Generated: ${now}
+File: ${fname}
+Depth Range: ${dmin}–${dmax} m MD
+Samples: ${rawData.length}
+Reservoir Confidence Score: ${conf}%
+
+CUTOFF PARAMETERS USED
+${'─'.repeat(40)}
+GR cutoff:    < ${cuts.grMax} API
+NPHI range:   ${cuts.nMin} – ${cuts.nMax}
+RHOB range:   ${cuts.rMin} – ${cuts.rMax} g/cc
+
+SUMMARY STATISTICS
+${'─'.repeat(40)}
+Avg GR:       ${avg(rawData,'GR').toFixed(1)} API
+Avg RHOB:     ${avg(rawData,'RHOB').toFixed(2)} g/cc
+Avg NPHI:     ${avg(rawData,'NPHI').toFixed(3)}
+Reservoir zones detected: ${resZones.length}
+Estimated net pay: ${netPay.toFixed(0)} m
+
+RESERVOIR CANDIDATES
+${'─'.repeat(40)}`;
+  const cands=zones.filter(z=>z.type==='reservoir'||z.type==='sand');
+  if(!cands.length){txt+='\nNo reservoir or sand intervals detected.\n';}
+  else{
+    cands.forEach(z=>{
+      txt+=`\n  ${z.type.toUpperCase().padEnd(18)} ${z.start}–${z.end} m  |  GR: ${avg(z.rows,'GR').toFixed(1)}  |  RHOB: ${avg(z.rows,'RHOB').toFixed(2)}  |  NPHI: ${avg(z.rows,'NPHI').toFixed(3)}  |  Porosity: ${(avg(z.rows,'NPHI')*100).toFixed(1)}%`;
+    });
+  }
+
+  txt+=`\n\nPETROPHYSICAL ASSESSMENT\n${'─'.repeat(40)}\n${document.getElementById('interpText').textContent}`;
+  txt+=`\n\nENGINEERING RECOMMENDATION\n${'─'.repeat(40)}\n${document.getElementById('recText').textContent}`;
+  txt+=`\n\nLITHOLOGY INTERPRETATION\n${'─'.repeat(40)}\n${document.getElementById('lithoText').textContent}`;
+  txt+=`\n\n${'='.repeat(60)}\nNote: This report is generated by an automated screening tool.\nAll interpretations should be validated by a qualified petrophysicist\nor petroleum engineer before operational decisions are made.\n`;
+
+  const blob=new Blob([txt],{type:'text/plain'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`well_log_report_${now}.txt`;a.click();
+}
+</script>
+</body>
+</html>
